@@ -16,5 +16,5 @@ Renders responses to our course survey as pandoc Markdown
 cd 150vm-survey
 racket reports.rkt --sample
 racket reports.rkt --qualtrics responses.csv
-racket reports.rkt --qualtrics responses.csv --openended-group
+racket reports.rkt --qualtrics responses.csv --openended-grouped
 ```
