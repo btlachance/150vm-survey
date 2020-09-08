@@ -252,21 +252,19 @@
 
   (check-not-exn (lambda () (reports->openended-grouped (list r)))))
 
+(define (confidence<? c1 c2)
+  (define increasing (list '|Not at all| 'Slightly 'Somewhat 'Fairly 'Confident 'N/A))
+  (< (index-of increasing c1) (index-of increasing c2)))
+
 ;; (skills-blurb skills order) returns a string of text for the
 ;; skills from some report r, where order is one of the following
 ;; symbols:
 ;; - 'survey (default)
 ;; - 'increasing
 (define (skills-blurb skills sort-order)
-
   ;; (skill<? s1 s2) returns true if the reported confidence in skill
   ;; s1 is less than the reported confidence in skill s2
-  (define (skill<? s1 s2)
-    (define (confidence<? c1 c2)
-      (define increasing (list '|Not at all| 'Slightly 'Somewhat 'Fairly 'Confident 'N/A))
-      (< (index-of increasing c1) (index-of increasing c2)))
-
-    (confidence<? (hash-ref skills s1) (hash-ref skills s2)))
+  (define (skill<? s1 s2) (confidence<? (hash-ref skills s1) (hash-ref skills s2)))
 
   (define skill-names-presentation
     (match sort-order
@@ -418,7 +416,10 @@
                        (mode 'student-report)]
    
    ["--openended-grouped" "Render just the open-ended responses, grouped by question"
-                           (mode 'openended-grouped)])
+                          (mode 'openended-grouped)]
+
+   ["--mod1-cluster" "Render named, finished responses for module 1 clustering"
+                     (mode 'mod1-cluster)])
 
   (unless (input)
     (command-line-error "No input specified; use one of --sample or --qualtrics <f>"))
@@ -451,7 +452,54 @@
        (map student-report (append (sort fin report<?) unfin))]
 
       ['openended-grouped
-       (reports->openended-grouped reports)]))
+       (reports->openended-grouped reports)]
+
+      ['mod1-cluster
+
+       (define ((skill<? s) r1 r2)
+         (define c1 (hash-ref (report-skills r1) s))
+         (define c2 (hash-ref (report-skills r2) s))
+         (confidence<? c1 c2))
+       (define otherc<? (skill<? 'otherc))
+       (define xlateopsem<? (skill<? 'xlateopsem))
+
+       (define reports*
+         (sort (filter (lambda (r) (not (eq? (report-name r) 'N/A)))
+                       (filter report-finished-survey? reports))
+               (lambda (r1 r2)
+                 ;; lexicographic sort on otherc * xlateopsem
+                 (or (otherc<? r1 r2)
+                     (and (not (otherc<? r2 r1))
+                          (not (xlateopsem<? r2 r1)))))))
+
+       (define (flexible? r)
+         (match (report-conditions r)
+           ['N/A #f]
+           [cs
+            (findf (lambda (c) (string-prefix? c "I will have the flexibility"))
+                   cs)]))
+       (define-values (flex unflex) (partition flexible? reports*))
+
+       (define (md r)
+         (define (s skill) (hash-ref (report-skills r) skill))
+         @~a{@report-name[r] (@report-with-whom[r])
+
+             - Reading other people's C: @s['otherc]
+             - Translating operational semantics into code:  @s['xlateopsem]
+
+
+             })
+
+       (list @~a{
+                 # \Huge{Flexible time}
+
+                 @(apply ~a (map md flex))
+
+                 \newpage
+
+                 # \Huge{Not flexible time}
+
+                 @(apply ~a (map md unflex))})]))
 
   (display (apply ~a #:separator "\n\\clearpage\n\n" mds))
   (newline))
