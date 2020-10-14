@@ -491,13 +491,13 @@
              })
 
        (list @~a{
-                 # \Huge{Flexible time}
+                 # \Huge Flexible time
 
                  @(apply ~a (map md flex))
 
                  \newpage
 
-                 # \Huge{Not flexible time}
+                 # \Huge Not flexible time
 
                  @(apply ~a (map md unflex))})]))
 
